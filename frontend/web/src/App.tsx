@@ -6,52 +6,49 @@ import WalletManager from "./components/WalletManager";
 import WalletSelector from "./components/WalletSelector";
 import "./App.css";
 
-interface PhishingEmail {
+interface ResearchData {
   id: string;
+  title: string;
   encryptedData: string;
   timestamp: number;
-  sender: string;
-  domain: string;
-  status: "pending" | "verified" | "rejected";
+  owner: string;
+  category: string;
+  status: "pending" | "approved" | "rejected";
+  analysisResult?: string;
 }
 
 const App: React.FC = () => {
   const [account, setAccount] = useState("");
   const [loading, setLoading] = useState(true);
-  const [emails, setEmails] = useState<PhishingEmail[]>([]);
+  const [researchList, setResearchList] = useState<ResearchData[]>([]);
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [walletSelectorOpen, setWalletSelectorOpen] = useState(false);
   const [transactionStatus, setTransactionStatus] = useState<{
     visible: boolean;
     status: "pending" | "success" | "error";
     message: string;
   }>({ visible: false, status: "pending", message: "" });
-  const [newEmailData, setNewEmailData] = useState({
-    domain: "",
-    headers: "",
-    urls: ""
+  const [newResearchData, setNewResearchData] = useState({
+    title: "",
+    category: "",
+    description: "",
+    encryptedData: ""
   });
-  const [searchTerm, setSearchTerm] = useState("");
-  const [activeTab, setActiveTab] = useState("all");
+  const [showTutorial, setShowTutorial] = useState(false);
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("research");
+  const [searchQuery, setSearchQuery] = useState("");
 
-  // Calculate statistics
-  const verifiedCount = emails.filter(e => e.status === "verified").length;
-  const pendingCount = emails.filter(e => e.status === "pending").length;
-  const rejectedCount = emails.filter(e => e.status === "rejected").length;
-
-  // Filter emails based on search and tab
-  const filteredEmails = emails.filter(email => {
-    const matchesSearch = email.domain.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         email.sender.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesTab = activeTab === "all" || email.status === activeTab;
-    return matchesSearch && matchesTab;
-  });
+  // Calculate statistics for dashboard
+  const approvedCount = researchList.filter(r => r.status === "approved").length;
+  const pendingCount = researchList.filter(r => r.status === "pending").length;
+  const rejectedCount = researchList.filter(r => r.status === "rejected").length;
 
   useEffect(() => {
-    loadEmails().finally(() => setLoading(false));
+    loadResearchData().finally(() => setLoading(false));
   }, []);
 
   const onWalletSelect = async (wallet: any) => {
@@ -78,7 +75,7 @@ const App: React.FC = () => {
     setProvider(null);
   };
 
-  const loadEmails = async () => {
+  const loadResearchData = async () => {
     setIsRefreshing(true);
     try {
       const contract = await getContractReadOnly();
@@ -91,91 +88,91 @@ const App: React.FC = () => {
         return;
       }
       
-      const keysBytes = await contract.getData("email_keys");
+      const keysBytes = await contract.getData("research_keys");
       let keys: string[] = [];
       
       if (keysBytes.length > 0) {
         try {
           keys = JSON.parse(ethers.toUtf8String(keysBytes));
         } catch (e) {
-          console.error("Error parsing email keys:", e);
+          console.error("Error parsing research keys:", e);
         }
       }
       
-      const list: PhishingEmail[] = [];
+      const list: ResearchData[] = [];
       
       for (const key of keys) {
         try {
-          const emailBytes = await contract.getData(`email_${key}`);
-          if (emailBytes.length > 0) {
+          const researchBytes = await contract.getData(`research_${key}`);
+          if (researchBytes.length > 0) {
             try {
-              const emailData = JSON.parse(ethers.toUtf8String(emailBytes));
+              const researchData = JSON.parse(ethers.toUtf8String(researchBytes));
               list.push({
                 id: key,
-                encryptedData: emailData.data,
-                timestamp: emailData.timestamp,
-                sender: emailData.sender,
-                domain: emailData.domain,
-                status: emailData.status || "pending"
+                title: researchData.title,
+                encryptedData: researchData.data,
+                timestamp: researchData.timestamp,
+                owner: researchData.owner,
+                category: researchData.category,
+                status: researchData.status || "pending",
+                analysisResult: researchData.analysisResult
               });
             } catch (e) {
-              console.error(`Error parsing email data for ${key}:`, e);
+              console.error(`Error parsing research data for ${key}:`, e);
             }
           }
         } catch (e) {
-          console.error(`Error loading email ${key}:`, e);
+          console.error(`Error loading research ${key}:`, e);
         }
       }
       
       list.sort((a, b) => b.timestamp - a.timestamp);
-      setEmails(list);
+      setResearchList(list);
     } catch (e) {
-      console.error("Error loading emails:", e);
+      console.error("Error loading research data:", e);
     } finally {
       setIsRefreshing(false);
       setLoading(false);
     }
   };
 
-  const uploadEmail = async () => {
+  const submitResearch = async () => {
     if (!provider) { 
       alert("Please connect wallet first"); 
       return; 
     }
     
-    setUploading(true);
+    setCreating(true);
     setTransactionStatus({
       visible: true,
       status: "pending",
-      message: "Encrypting email data with FHE..."
+      message: "Encrypting research data with FHE..."
     });
     
     try {
-      // Simulate FHE encryption
-      const encryptedData = `FHE-${btoa(JSON.stringify(newEmailData))}`;
-      
       const contract = await getContractWithSigner();
       if (!contract) {
         throw new Error("Failed to get contract with signer");
       }
       
-      const emailId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const researchId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 
-      const emailData = {
-        data: encryptedData,
+      const researchData = {
+        title: newResearchData.title,
+        data: newResearchData.encryptedData,
         timestamp: Math.floor(Date.now() / 1000),
-        sender: account,
-        domain: newEmailData.domain,
+        owner: account,
+        category: newResearchData.category,
         status: "pending"
       };
       
       // Store encrypted data on-chain using FHE
       await contract.setData(
-        `email_${emailId}`, 
-        ethers.toUtf8Bytes(JSON.stringify(emailData))
+        `research_${researchId}`, 
+        ethers.toUtf8Bytes(JSON.stringify(researchData))
       );
       
-      const keysBytes = await contract.getData("email_keys");
+      const keysBytes = await contract.getData("research_keys");
       let keys: string[] = [];
       
       if (keysBytes.length > 0) {
@@ -186,28 +183,29 @@ const App: React.FC = () => {
         }
       }
       
-      keys.push(emailId);
+      keys.push(researchId);
       
       await contract.setData(
-        "email_keys", 
+        "research_keys", 
         ethers.toUtf8Bytes(JSON.stringify(keys))
       );
       
       setTransactionStatus({
         visible: true,
         status: "success",
-        message: "Encrypted email submitted securely!"
+        message: "Research data submitted securely using FHE!"
       });
       
-      await loadEmails();
+      await loadResearchData();
       
       setTimeout(() => {
         setTransactionStatus({ visible: false, status: "pending", message: "" });
-        setShowUploadModal(false);
-        setNewEmailData({
-          domain: "",
-          headers: "",
-          urls: ""
+        setShowCreateModal(false);
+        setNewResearchData({
+          title: "",
+          category: "",
+          description: "",
+          encryptedData: ""
         });
       }, 2000);
     } catch (e: any) {
@@ -225,11 +223,11 @@ const App: React.FC = () => {
         setTransactionStatus({ visible: false, status: "pending", message: "" });
       }, 3000);
     } finally {
-      setUploading(false);
+      setCreating(false);
     }
   };
 
-  const verifyEmail = async (emailId: string) => {
+  const approveResearch = async (researchId: string) => {
     if (!provider) {
       alert("Please connect wallet first");
       return;
@@ -238,42 +236,39 @@ const App: React.FC = () => {
     setTransactionStatus({
       visible: true,
       status: "pending",
-      message: "Processing encrypted email with FHE..."
+      message: "Processing research data with FHE..."
     });
 
     try {
-      // Simulate FHE computation time
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
       const contract = await getContractWithSigner();
       if (!contract) {
         throw new Error("Failed to get contract with signer");
       }
       
-      const emailBytes = await contract.getData(`email_${emailId}`);
-      if (emailBytes.length === 0) {
-        throw new Error("Email not found");
+      const researchBytes = await contract.getData(`research_${researchId}`);
+      if (researchBytes.length === 0) {
+        throw new Error("Research not found");
       }
       
-      const emailData = JSON.parse(ethers.toUtf8String(emailBytes));
+      const researchData = JSON.parse(ethers.toUtf8String(researchBytes));
       
-      const updatedEmail = {
-        ...emailData,
-        status: "verified"
+      const updatedResearch = {
+        ...researchData,
+        status: "approved"
       };
       
       await contract.setData(
-        `email_${emailId}`, 
-        ethers.toUtf8Bytes(JSON.stringify(updatedEmail))
+        `research_${researchId}`, 
+        ethers.toUtf8Bytes(JSON.stringify(updatedResearch))
       );
       
       setTransactionStatus({
         visible: true,
         status: "success",
-        message: "FHE verification completed successfully!"
+        message: "Research approved successfully!"
       });
       
-      await loadEmails();
+      await loadResearchData();
       
       setTimeout(() => {
         setTransactionStatus({ visible: false, status: "pending", message: "" });
@@ -282,7 +277,7 @@ const App: React.FC = () => {
       setTransactionStatus({
         visible: true,
         status: "error",
-        message: "Verification failed: " + (e.message || "Unknown error")
+        message: "Approval failed: " + (e.message || "Unknown error")
       });
       
       setTimeout(() => {
@@ -291,7 +286,7 @@ const App: React.FC = () => {
     }
   };
 
-  const rejectEmail = async (emailId: string) => {
+  const rejectResearch = async (researchId: string) => {
     if (!provider) {
       alert("Please connect wallet first");
       return;
@@ -300,42 +295,39 @@ const App: React.FC = () => {
     setTransactionStatus({
       visible: true,
       status: "pending",
-      message: "Processing encrypted email with FHE..."
+      message: "Processing research data with FHE..."
     });
 
     try {
-      // Simulate FHE computation time
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
       const contract = await getContractWithSigner();
       if (!contract) {
         throw new Error("Failed to get contract with signer");
       }
       
-      const emailBytes = await contract.getData(`email_${emailId}`);
-      if (emailBytes.length === 0) {
-        throw new Error("Email not found");
+      const researchBytes = await contract.getData(`research_${researchId}`);
+      if (researchBytes.length === 0) {
+        throw new Error("Research not found");
       }
       
-      const emailData = JSON.parse(ethers.toUtf8String(emailBytes));
+      const researchData = JSON.parse(ethers.toUtf8String(researchBytes));
       
-      const updatedEmail = {
-        ...emailData,
+      const updatedResearch = {
+        ...researchData,
         status: "rejected"
       };
       
       await contract.setData(
-        `email_${emailId}`, 
-        ethers.toUtf8Bytes(JSON.stringify(updatedEmail))
+        `research_${researchId}`, 
+        ethers.toUtf8Bytes(JSON.stringify(updatedResearch))
       );
       
       setTransactionStatus({
         visible: true,
         status: "success",
-        message: "FHE rejection completed successfully!"
+        message: "Research rejected successfully!"
       });
       
-      await loadEmails();
+      await loadResearchData();
       
       setTimeout(() => {
         setTransactionStatus({ visible: false, status: "pending", message: "" });
@@ -353,39 +345,156 @@ const App: React.FC = () => {
     }
   };
 
+  const runFHEAnalysis = async (researchId: string) => {
+    if (!provider) {
+      alert("Please connect wallet first");
+      return;
+    }
+
+    setTransactionStatus({
+      visible: true,
+      status: "pending",
+      message: "Running FHE analysis on encrypted data..."
+    });
+
+    try {
+      // Simulate FHE computation time
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      const contract = await getContractWithSigner();
+      if (!contract) {
+        throw new Error("Failed to get contract with signer");
+      }
+      
+      const researchBytes = await contract.getData(`research_${researchId}`);
+      if (researchBytes.length === 0) {
+        throw new Error("Research not found");
+      }
+      
+      const researchData = JSON.parse(ethers.toUtf8String(researchBytes));
+      
+      // Simulate analysis result
+      const analysisResult = "FHE Analysis Result: Significant correlation found (p < 0.01)";
+      
+      const updatedResearch = {
+        ...researchData,
+        analysisResult
+      };
+      
+      await contract.setData(
+        `research_${researchId}`, 
+        ethers.toUtf8Bytes(JSON.stringify(updatedResearch))
+      );
+      
+      setTransactionStatus({
+        visible: true,
+        status: "success",
+        message: "FHE analysis completed successfully!"
+      });
+      
+      await loadResearchData();
+      
+      setTimeout(() => {
+        setTransactionStatus({ visible: false, status: "pending", message: "" });
+      }, 2000);
+    } catch (e: any) {
+      setTransactionStatus({
+        visible: true,
+        status: "error",
+        message: "Analysis failed: " + (e.message || "Unknown error")
+      });
+      
+      setTimeout(() => {
+        setTransactionStatus({ visible: false, status: "pending", message: "" });
+      }, 3000);
+    }
+  };
+
   const isOwner = (address: string) => {
     return account.toLowerCase() === address.toLowerCase();
   };
 
-  const renderBarChart = () => {
-    const domains = Array.from(new Set(emails.map(e => e.domain)));
-    const domainCounts = domains.map(domain => ({
-      domain,
-      count: emails.filter(e => e.domain === domain).length
-    })).sort((a, b) => b.count - a.count).slice(0, 5);
+  const tutorialSteps = [
+    {
+      title: "Connect Wallet",
+      description: "Connect your Web3 wallet to interact with the DeSci platform",
+      icon: "🔗"
+    },
+    {
+      title: "Submit Encrypted Research",
+      description: "Upload your research data which will be encrypted using FHE",
+      icon: "🔒"
+    },
+    {
+      title: "FHE Analysis",
+      description: "Your data is analyzed in encrypted state without decryption",
+      icon: "⚙️"
+    },
+    {
+      title: "Get Results",
+      description: "Receive verifiable results while keeping your data private",
+      icon: "📊"
+    }
+  ];
+
+  const renderPieChart = () => {
+    const total = researchList.length || 1;
+    const approvedPercentage = (approvedCount / total) * 100;
+    const pendingPercentage = (pendingCount / total) * 100;
+    const rejectedPercentage = (rejectedCount / total) * 100;
 
     return (
-      <div className="bar-chart-container">
-        {domainCounts.map((item, index) => (
-          <div key={index} className="bar-item">
-            <div className="bar-label">{item.domain}</div>
-            <div className="bar-wrapper">
-              <div 
-                className="bar-fill"
-                style={{ width: `${(item.count / emails.length) * 100}%` }}
-              ></div>
-            </div>
-            <div className="bar-value">{item.count}</div>
+      <div className="pie-chart-container">
+        <div className="pie-chart">
+          <div 
+            className="pie-segment approved" 
+            style={{ transform: `rotate(${approvedPercentage * 3.6}deg)` }}
+          ></div>
+          <div 
+            className="pie-segment pending" 
+            style={{ transform: `rotate(${(approvedPercentage + pendingPercentage) * 3.6}deg)` }}
+          ></div>
+          <div 
+            className="pie-segment rejected" 
+            style={{ transform: `rotate(${(approvedPercentage + pendingPercentage + rejectedPercentage) * 3.6}deg)` }}
+          ></div>
+          <div className="pie-center">
+            <div className="pie-value">{researchList.length}</div>
+            <div className="pie-label">Studies</div>
           </div>
-        ))}
+        </div>
+        <div className="pie-legend">
+          <div className="legend-item">
+            <div className="color-box approved"></div>
+            <span>Approved: {approvedCount}</span>
+          </div>
+          <div className="legend-item">
+            <div className="color-box pending"></div>
+            <span>Pending: {pendingCount}</span>
+          </div>
+          <div className="legend-item">
+            <div className="color-box rejected"></div>
+            <span>Rejected: {rejectedCount}</span>
+          </div>
+        </div>
       </div>
     );
   };
 
+  const toggleExpand = (id: string) => {
+    setExpandedItemId(expandedItemId === id ? null : id);
+  };
+
+  const filteredResearch = researchList.filter(item => 
+    item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    item.description?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   if (loading) return (
     <div className="loading-screen">
-      <div className="spinner"></div>
-      <p>Initializing encrypted connection...</p>
+      <div className="fhe-spinner"></div>
+      <p>Initializing FHE connection...</p>
     </div>
   );
 
@@ -393,17 +502,39 @@ const App: React.FC = () => {
     <div className="app-container">
       <header className="app-header">
         <div className="logo">
-          <div className="shield-icon"></div>
-          <h1>Phish<span>Shield</span></h1>
+          <div className="logo-icon">
+            <div className="atom-icon"></div>
+          </div>
+          <h1>FHE<span>DeSci</span>Platform</h1>
         </div>
         
         <div className="header-actions">
+          <div className="search-container">
+            <input 
+              type="text" 
+              placeholder="Search research..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-input"
+            />
+            <div className="search-icon"></div>
+          </div>
+          
           <button 
-            onClick={() => setShowUploadModal(true)} 
-            className="upload-btn"
+            onClick={() => setShowCreateModal(true)} 
+            className="create-btn"
           >
-            Upload Email
+            <div className="add-icon"></div>
+            Submit Research
           </button>
+          
+          <button 
+            className="tutorial-btn"
+            onClick={() => setShowTutorial(!showTutorial)}
+          >
+            {showTutorial ? "Hide Guide" : "Show Guide"}
+          </button>
+          
           <WalletManager account={account} onConnect={onConnect} onDisconnect={onDisconnect} />
         </div>
       </header>
@@ -411,30 +542,57 @@ const App: React.FC = () => {
       <div className="main-content">
         <div className="welcome-banner">
           <div className="welcome-text">
-            <h2>Secure Phishing Email Analysis</h2>
-            <p>Collaboratively analyze phishing emails while keeping data encrypted using FHE</p>
+            <h2>Fully Homomorphic Encryption for Decentralized Science</h2>
+            <p>Submit, analyze, and share research data while maintaining complete privacy</p>
+          </div>
+          <div className="fhe-badge">
+            <span>FHE-Powered</span>
           </div>
         </div>
         
-        <div className="dashboard-grid">
-          <div className="dashboard-card">
+        {showTutorial && (
+          <div className="tutorial-section">
+            <h2>DeSci Platform Guide</h2>
+            <p className="subtitle">Learn how to securely contribute to scientific research</p>
+            
+            <div className="tutorial-steps">
+              {tutorialSteps.map((step, index) => (
+                <div 
+                  className="tutorial-step"
+                  key={index}
+                >
+                  <div className="step-icon">{step.icon}</div>
+                  <div className="step-content">
+                    <h3>{step.title}</h3>
+                    <p>{step.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        <div className="dashboard-panels">
+          <div className="panel project-intro">
             <h3>Project Introduction</h3>
-            <p>Share and analyze phishing emails while keeping sensitive data encrypted using Fully Homomorphic Encryption (FHE).</p>
-            <div className="fhe-badge">
-              <span>FHE-Powered</span>
+            <p>FHE DeSci Platform enables researchers to submit encrypted data and run analyses while maintaining privacy. Using Fully Homomorphic Encryption, data remains encrypted during processing.</p>
+            <div className="tech-badges">
+              <span className="badge">fhEVM</span>
+              <span className="badge">IPFS</span>
+              <span className="badge">FHE</span>
             </div>
           </div>
           
-          <div className="dashboard-card">
-            <h3>Email Statistics</h3>
+          <div className="panel stats">
+            <h3>Research Statistics</h3>
             <div className="stats-grid">
               <div className="stat-item">
-                <div className="stat-value">{emails.length}</div>
-                <div className="stat-label">Total Emails</div>
+                <div className="stat-value">{researchList.length}</div>
+                <div className="stat-label">Total Studies</div>
               </div>
               <div className="stat-item">
-                <div className="stat-value">{verifiedCount}</div>
-                <div className="stat-label">Verified</div>
+                <div className="stat-value">{approvedCount}</div>
+                <div className="stat-label">Approved</div>
               </div>
               <div className="stat-item">
                 <div className="stat-value">{pendingCount}</div>
@@ -447,52 +605,18 @@ const App: React.FC = () => {
             </div>
           </div>
           
-          <div className="dashboard-card">
-            <h3>Top Domains</h3>
-            {emails.length > 0 ? renderBarChart() : <p>No data available</p>}
+          <div className="panel chart">
+            <h3>Research Status</h3>
+            {renderPieChart()}
           </div>
         </div>
         
-        <div className="emails-section">
+        <div className="research-section">
           <div className="section-header">
-            <h2>Phishing Email Reports</h2>
+            <h2>Research Submissions</h2>
             <div className="header-actions">
-              <div className="search-box">
-                <input 
-                  type="text" 
-                  placeholder="Search domains or senders..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <div className="tabs">
-                <button 
-                  className={activeTab === "all" ? "active" : ""}
-                  onClick={() => setActiveTab("all")}
-                >
-                  All
-                </button>
-                <button 
-                  className={activeTab === "verified" ? "active" : ""}
-                  onClick={() => setActiveTab("verified")}
-                >
-                  Verified
-                </button>
-                <button 
-                  className={activeTab === "pending" ? "active" : ""}
-                  onClick={() => setActiveTab("pending")}
-                >
-                  Pending
-                </button>
-                <button 
-                  className={activeTab === "rejected" ? "active" : ""}
-                  onClick={() => setActiveTab("rejected")}
-                >
-                  Rejected
-                </button>
-              </div>
               <button 
-                onClick={loadEmails}
+                onClick={loadResearchData}
                 className="refresh-btn"
                 disabled={isRefreshing}
               >
@@ -501,51 +625,92 @@ const App: React.FC = () => {
             </div>
           </div>
           
-          <div className="emails-list">
-            {filteredEmails.length === 0 ? (
-              <div className="no-emails">
-                <div className="no-emails-icon"></div>
-                <p>No phishing emails found</p>
+          <div className="research-list">
+            {filteredResearch.length === 0 ? (
+              <div className="no-research">
+                <div className="no-research-icon"></div>
+                <p>No research submissions found</p>
                 <button 
                   className="primary-btn"
-                  onClick={() => setShowUploadModal(true)}
+                  onClick={() => setShowCreateModal(true)}
                 >
-                  Upload First Email
+                  Submit First Research
                 </button>
               </div>
             ) : (
-              filteredEmails.map(email => (
-                <div className="email-card" key={email.id}>
-                  <div className="email-header">
-                    <div className="email-domain">{email.domain}</div>
-                    <div className="email-meta">
-                      <span className="email-sender">{email.sender.substring(0, 6)}...{email.sender.substring(38)}</span>
-                      <span className="email-date">
-                        {new Date(email.timestamp * 1000).toLocaleDateString()}
-                      </span>
-                      <span className={`status-badge ${email.status}`}>
-                        {email.status}
+              filteredResearch.map(research => (
+                <div 
+                  className={`research-item ${research.status} ${expandedItemId === research.id ? 'expanded' : ''}`} 
+                  key={research.id}
+                  onClick={() => toggleExpand(research.id)}
+                >
+                  <div className="research-header">
+                    <div className="research-id">#{research.id.substring(0, 6)}</div>
+                    <h3 className="research-title">{research.title}</h3>
+                    <div className="research-meta">
+                      <span className="category">{research.category}</span>
+                      <span className="owner">{research.owner.substring(0, 6)}...{research.owner.substring(38)}</span>
+                      <span className="date">
+                        {new Date(research.timestamp * 1000).toLocaleDateString()}
                       </span>
                     </div>
+                    <div className={`status-badge ${research.status}`}>
+                      {research.status}
+                    </div>
                   </div>
-                  <div className="email-actions">
-                    {isOwner(email.sender) && email.status === "pending" && (
-                      <>
-                        <button 
-                          className="action-btn success"
-                          onClick={() => verifyEmail(email.id)}
-                        >
-                          Verify
-                        </button>
-                        <button 
-                          className="action-btn danger"
-                          onClick={() => rejectEmail(email.id)}
-                        >
-                          Reject
-                        </button>
-                      </>
-                    )}
-                  </div>
+                  
+                  {expandedItemId === research.id && (
+                    <div className="research-details">
+                      <div className="detail-row">
+                        <label>Encrypted Data:</label>
+                        <div className="encrypted-data">{research.encryptedData.substring(0, 120)}...</div>
+                      </div>
+                      
+                      {research.analysisResult && (
+                        <div className="detail-row">
+                          <label>FHE Analysis Result:</label>
+                          <div className="analysis-result">{research.analysisResult}</div>
+                        </div>
+                      )}
+                      
+                      <div className="research-actions">
+                        {isOwner(research.owner) && research.status === "pending" && (
+                          <>
+                            <button 
+                              className="action-btn success"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                approveResearch(research.id);
+                              }}
+                            >
+                              Approve
+                            </button>
+                            <button 
+                              className="action-btn danger"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                rejectResearch(research.id);
+                              }}
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+                        
+                        {research.status === "approved" && (
+                          <button 
+                            className="action-btn primary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              runFHEAnalysis(research.id);
+                            }}
+                          >
+                            Run FHE Analysis
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))
             )}
@@ -553,13 +718,13 @@ const App: React.FC = () => {
         </div>
       </div>
   
-      {showUploadModal && (
-        <ModalUpload 
-          onSubmit={uploadEmail} 
-          onClose={() => setShowUploadModal(false)} 
-          uploading={uploading}
-          emailData={newEmailData}
-          setEmailData={setNewEmailData}
+      {showCreateModal && (
+        <ModalCreate 
+          onSubmit={submitResearch} 
+          onClose={() => setShowCreateModal(false)} 
+          creating={creating}
+          researchData={newResearchData}
+          setResearchData={setNewResearchData}
         />
       )}
       
@@ -575,9 +740,9 @@ const App: React.FC = () => {
         <div className="transaction-modal">
           <div className="transaction-content">
             <div className={`transaction-icon ${transactionStatus.status}`}>
-              {transactionStatus.status === "pending" && <div className="spinner"></div>}
-              {transactionStatus.status === "success" && "✓"}
-              {transactionStatus.status === "error" && "✗"}
+              {transactionStatus.status === "pending" && <div className="fhe-spinner"></div>}
+              {transactionStatus.status === "success" && <div className="check-icon"></div>}
+              {transactionStatus.status === "error" && <div className="error-icon"></div>}
             </div>
             <div className="transaction-message">
               {transactionStatus.message}
@@ -590,10 +755,10 @@ const App: React.FC = () => {
         <div className="footer-content">
           <div className="footer-brand">
             <div className="logo">
-              <div className="shield-icon"></div>
-              <span>PhishShield</span>
+              <div className="atom-icon"></div>
+              <span>FHE DeSci Platform</span>
             </div>
-            <p>Secure phishing email analysis using FHE technology</p>
+            <p>Decentralized science powered by Fully Homomorphic Encryption</p>
           </div>
           
           <div className="footer-links">
@@ -609,7 +774,7 @@ const App: React.FC = () => {
             <span>FHE-Powered Privacy</span>
           </div>
           <div className="copyright">
-            © {new Date().getFullYear()} PhishShield. All rights reserved.
+            © {new Date().getFullYear()} FHE DeSci Platform. All rights reserved.
           </div>
         </div>
       </footer>
@@ -617,31 +782,31 @@ const App: React.FC = () => {
   );
 };
 
-interface ModalUploadProps {
+interface ModalCreateProps {
   onSubmit: () => void; 
   onClose: () => void; 
-  uploading: boolean;
-  emailData: any;
-  setEmailData: (data: any) => void;
+  creating: boolean;
+  researchData: any;
+  setResearchData: (data: any) => void;
 }
 
-const ModalUpload: React.FC<ModalUploadProps> = ({ 
+const ModalCreate: React.FC<ModalCreateProps> = ({ 
   onSubmit, 
   onClose, 
-  uploading,
-  emailData,
-  setEmailData
+  creating,
+  researchData,
+  setResearchData
 }) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setEmailData({
-      ...emailData,
+    setResearchData({
+      ...researchData,
       [name]: value
     });
   };
 
   const handleSubmit = () => {
-    if (!emailData.domain || !emailData.headers) {
+    if (!researchData.title || !researchData.encryptedData) {
       alert("Please fill required fields");
       return;
     }
@@ -651,54 +816,70 @@ const ModalUpload: React.FC<ModalUploadProps> = ({
 
   return (
     <div className="modal-overlay">
-      <div className="upload-modal">
+      <div className="create-modal">
         <div className="modal-header">
-          <h2>Upload Phishing Email</h2>
+          <h2>Submit New Research</h2>
           <button onClick={onClose} className="close-modal">&times;</button>
         </div>
         
         <div className="modal-body">
-          <div className="fhe-notice-banner">
-            Your email data will be encrypted with FHE before storage
+          <div className="fhe-notice">
+            <div className="key-icon"></div> 
+            <span>Your research data will be encrypted using FHE technology</span>
           </div>
           
-          <div className="form-grid">
-            <div className="form-group">
-              <label>Domain *</label>
-              <input 
-                type="text"
-                name="domain"
-                value={emailData.domain} 
-                onChange={handleChange}
-                placeholder="example.com" 
-              />
-            </div>
-            
-            <div className="form-group full-width">
-              <label>Email Headers *</label>
-              <textarea 
-                name="headers"
-                value={emailData.headers} 
-                onChange={handleChange}
-                placeholder="Paste email headers here..." 
-                rows={4}
-              />
-            </div>
-            
-            <div className="form-group full-width">
-              <label>Suspicious URLs</label>
-              <textarea 
-                name="urls"
-                value={emailData.urls} 
-                onChange={handleChange}
-                placeholder="Enter any suspicious URLs found in the email..." 
-                rows={2}
-              />
-            </div>
+          <div className="form-group">
+            <label>Research Title *</label>
+            <input 
+              type="text"
+              name="title"
+              value={researchData.title} 
+              onChange={handleChange}
+              placeholder="Enter research title..." 
+              className="form-input"
+            />
           </div>
           
-          <div className="privacy-notice">
-            Data remains encrypted during FHE processing and analysis
+          <div className="form-group">
+            <label>Category *</label>
+            <select 
+              name="category"
+              value={researchData.category} 
+              onChange={handleChange}
+              className="form-select"
+            >
+              <option value="">Select category</option>
+              <option value="Genomics">Genomics</option>
+              <option value="Clinical">Clinical Trials</option>
+              <option value="Epidemiology">Epidemiology</option>
+              <option value="Chemistry">Chemistry</option>
+              <option value="Physics">Physics</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          
+          <div className="form-group">
+            <label>Description</label>
+            <textarea 
+              name="description"
+              value={researchData.description} 
+              onChange={handleChange}
+              placeholder="Brief description of your research..." 
+              className="form-textarea"
+              rows={3}
+            />
+          </div>
+          
+          <div className="form-group">
+            <label>Encrypted Research Data *</label>
+            <textarea 
+              name="encryptedData"
+              value={researchData.encryptedData} 
+              onChange={handleChange}
+              placeholder="Paste your encrypted research data..." 
+              className="form-textarea"
+              rows={4}
+            />
           </div>
         </div>
         
@@ -711,10 +892,10 @@ const ModalUpload: React.FC<ModalUploadProps> = ({
           </button>
           <button 
             onClick={handleSubmit} 
-            disabled={uploading}
+            disabled={creating}
             className="submit-btn"
           >
-            {uploading ? "Encrypting with FHE..." : "Submit Securely"}
+            {creating ? "Encrypting with FHE..." : "Submit Research"}
           </button>
         </div>
       </div>

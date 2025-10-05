@@ -1,42 +1,66 @@
-# Confidential Phishing Email Sharing & Analysis
+# Decentralized Science Platform (DeSci) with FHE
 
-## Overview
-Phishing attacks remain one of the most persistent threats in cybersecurity. Individual organizations often detect phishing attempts in isolation, limiting the effectiveness of their defense mechanisms. This project introduces a collaborative platform where multiple companies can contribute encrypted phishing email features—such as URLs and headers—without revealing sensitive data. The core innovation lies in applying Fully Homomorphic Encryption (FHE) to make shared training of phishing detection models both secure and privacy-preserving.
-
-## Why FHE Matters
-Traditional data sharing frameworks expose organizations to risks: sharing raw phishing samples could inadvertently leak internal structures, sensitive communication, or employee information. FHE provides a breakthrough—data remains encrypted not only at rest and in transit but also during computation. This ensures that collaborative machine learning on phishing datasets is possible without any participant ever accessing another's unencrypted data.
-
-By leveraging FHE:
-- Encrypted email features can be aggregated safely across organizations.
-- Detection models improve continuously as more encrypted samples are shared.
-- Real-time signature updates are possible without compromising organizational privacy.
-
-## Key Features
-- **Encrypted Feature Sharing**: Email metadata such as URLs and headers are encrypted and pooled across companies.
-- **Collaborative FHE Model Training**: A phishing detection model is trained on encrypted datasets, improving accuracy while preserving confidentiality.
-- **Dynamic Threat Intelligence**: The system updates phishing signature databases in real-time, helping participants stay resilient against evolving attacks.
-- **Security-First Design**: No raw data ever leaves an organization, preventing data leakage or secondary exploitation.
-
-## Architecture Snapshot
-1. **Data Preparation**: Local systems extract relevant phishing features and encrypt them using FHE.
-2. **Encrypted Aggregation**: Encrypted data is sent to a shared analysis pipeline.
-3. **Model Training**: Concrete ML powers collaborative training directly on encrypted values.
-4. **Result Distribution**: Updated detection models and phishing signatures are returned to participants, ready for immediate deployment.
-
-## Usage Example
-- Prepare encrypted datasets with provided Python utilities.
-- Submit encrypted features to the federation server.
-- Retrieve updated phishing detection models periodically for deployment in local security infrastructure.
-
-## Technology Stack
-- **Concrete ML** for fully homomorphic machine learning computations.
-- **Python** for pipeline orchestration and feature encryption.
-- **Security tools** integrated for phishing simulation and detection benchmarking.
-
-## Roadmap
-- Expand support for additional encrypted email attributes (attachments, message body signals).
-- Introduce benchmarking tools for federated FHE training performance.
-- Provide deployment guides for integration with enterprise security platforms.
+A Web3-native platform that empowers researchers to share, analyze, and govern access to sensitive research data without ever compromising intellectual property. By combining Fully Homomorphic Encryption (FHE) with decentralized governance, this project enables a new paradigm for collaborative science.
 
 ---
-This project is built for researchers and security practitioners seeking a privacy-preserving approach to collaborative phishing defense. By combining the strengths of FHE with real-world cybersecurity challenges, it aims to make joint intelligence both practical and secure.
+
+## Why FHE Matters
+
+In traditional scientific collaboration, researchers must choose between sharing raw data (risking exposure of valuable IP) or keeping data private (limiting collaboration). Fully Homomorphic Encryption changes this equation by allowing computations directly on encrypted data. This ensures that:
+
+- Research datasets remain confidential even during computation.  
+- Analysis can be verified and executed without requiring decryption.  
+- Intellectual property is safeguarded while enabling collaborative insights.  
+
+In short, FHE allows science to be both **open** and **protected**.
+
+---
+
+## Core Features
+
+- **Encrypted Data Submission**: Researchers upload encrypted datasets to IPFS, ensuring persistent and secure storage.  
+- **fhEVM Integration**: Smart contracts enforce access control and define what analyses are permissible on encrypted inputs.  
+- **DAO-Driven Governance**: Token holders vote on which encrypted computations can be executed, creating a transparent and community-driven research workflow.  
+- **FHE-Powered Analysis**: Complex computations run directly on encrypted data, returning results without exposing the underlying dataset.  
+- **NFT Research Artifacts**: Verified research outcomes can be minted as NFTs, enabling traceable, tokenized recognition of contributions.  
+
+---
+
+## Architecture Overview
+
+1. **Data Layer** – Research datasets are encrypted client-side and uploaded to IPFS.  
+2. **Access Control** – fhEVM contracts determine which parties or algorithms can process the data.  
+3. **Computation** – FHE libraries execute computations on encrypted data, preserving confidentiality.  
+4. **Governance** – DAO members decide which analyses are legitimate and beneficial.  
+5. **Results & Recognition** – Computation outputs can be published, shared, or minted as NFTs.  
+
+---
+
+## Security Considerations
+
+- No raw dataset is ever exposed during computation.  
+- Access permissions are codified on-chain via fhEVM, preventing unilateral control.  
+- DAO voting prevents misuse by aligning computational decisions with collective community interest.  
+
+---
+
+## Roadmap
+
+- **Phase 1**: Core fhEVM contracts, encrypted data storage, and minimal DAO voting.  
+- **Phase 2**: Full FHE integration for advanced computations and verification mechanisms.  
+- **Phase 3**: NFT-based research recognition and marketplace for encrypted analysis modules.  
+- **Phase 4**: Expansion into cross-chain interoperability and integration with broader Web3 research ecosystems.  
+
+---
+
+## Tech Stack
+
+- fhEVM  
+- Solidity  
+- IPFS  
+
+---
+
+### Towards a New Era of Scientific Collaboration
+
+This project aims to make decentralized science both **collaborative** and **secure**, where researchers retain ownership of their work while benefiting from collective intelligence. With FHE at its core, sensitive discoveries no longer need to be hidden—they can be computed upon, shared, and governed in a way that respects both openness and privacy.
